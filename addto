@@ -1,0 +1,61 @@
+#!/usr/bin/bash
+#----------------------------------------------------------
+# This script should be called as follows:
+# addto file1.csv file2.csv
+# It loops though the lines of file1.csv and checks if
+# a similar entry is present in file2.csv.
+# The comparison is performed for "email addresses" in two 
+# fields specified below. If the entry is not found in file2.csv
+# then it is appended at the end of that file, as specified 
+# by the last part of this script, see comments below.
+# 
+# ---------------------------------------------------------
+# Written by Vitaly N. Golovach on March 16, 2016
+#----------------------------------------------------------
+# Fields to compare in file1.csv and file2.csv
+emailNF1=4
+emailNF2=4
+#field separators (delimiters) for the two files
+fs1=","
+fs2=","
+# check if file2.csv does not exists
+if [ ! -f $2 ]; then
+  echo "The file "$2" does not seem to exist."
+  echo -n "Would you like to create it [yes/no]: "
+  read varYN
+  if [ "$varYN" == "yes" ]; then
+    touch $2
+  else
+    echo "Exiting without making any changes."
+    exit 1
+  fi
+fi
+#get the number of lines in file1.csv
+nl=$(gawk 'BEGIN{}{}END{print NR}' $1)
+# Loop through the lines of file1.csv
+cnt=1
+while [ $cnt -le $nl ]; do
+  #get the full record of the current line of file1.csv
+  recfile1=$(gawk -v vnl=$cnt -v vne=$emailNF1 -v vfs="$fs1" \
+    'BEGIN{FS=vfs}{if(NR==vnl){rec=$0}}END{print rec}' $1)
+  # get the email address without spaces from that line of file1.csv
+  emlfile1=$(echo $recfile1|gawk -v vne=$emailNF1 -v vfs="$fs1" \
+    'BEGIN{FS=vfs}{eml=$(vne);gsub(/^[ \t]+|[ \t]+$/, "", eml)}END{print eml}')
+  # see if the email is contained in file2.csv
+  mcrit=$(gawk -v vne=$emailNF2 -v eml1=$emlfile1 -v vfs="$fs2" \
+    'BEGIN{FS=vfs;crit="not"}{eml2=$(vne); gsub(/^[ \t]+|[ \t]+$/, "", eml2); \
+    if(tolower(eml1)==tolower(eml2)){crit="yes"}}END{print crit}' $2)
+  # check if there is anything to add to file2.csv
+  if [ "$mcrit" = "not" ]; then 
+  # !!! the following lines must be adapted as required by file2.csv !!!
+  # !!! in particular, the 3-rd line of the code from below tells how to write the entry !!!
+    recfile2=$(echo $recfile1|gawk -v vne=$emailNF1 -v vfs1="$fs1" \
+      -v vfs2="$fs2" 'BEGIN{FS=vfs1}{eml=$(vne);gsub(/^[ \t]+|[ \t]+$/, "", eml); \
+      rec=$1 vfs2 $2 vfs2 $1" "$2 vfs2 eml vfs2 \
+      }END{print rec}')
+    echo "Entry at position "$cnt" is new, appending the following processed line:"
+    echo $recfile2
+    echo $recfile2>>$2
+  fi
+ let cnt=cnt+1
+done
